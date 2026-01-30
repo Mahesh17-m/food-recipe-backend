@@ -9,7 +9,7 @@ const app = express();
 const chatbotRoutes = require('./routes/chatbotRoutes'); 
 // Middleware
 app.use(cors({
-  origin: "http://localhost:4200",
+  origin: ['http://localhost:4200', 'https://your-frontend.vercel.app'], // Will update after frontend deploy
   credentials: true
 }));
 app.use(express.json({ limit: '50mb' }));
