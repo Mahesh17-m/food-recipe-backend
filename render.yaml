@@ -1,0 +1,32 @@
+# render.yaml
+services:
+  - type: web
+    name: food-recipe-backend
+    env: node
+    region: oregon  # or singapore, frankfurt (choose closest to you)
+    plan: free
+    
+    # Build commands
+    buildCommand: npm install
+    
+    # Start command
+    startCommand: npm start
+    
+    # Health check path
+    healthCheckPath: /api/health
+    
+    # Auto-deploy from GitHub
+    autoDeploy: true
+    
+    # Environment variables (will be set in dashboard)
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000  # Render uses port 10000
+    
+    # Disk for uploads directory
+    disk:
+      name: uploads
+      mountPath: /opt/render/project/src/uploads
+      sizeGB: 1
