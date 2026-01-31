@@ -93,41 +93,38 @@ const recipeMulter = multer({
   limits: { fileSize: 10 * 1024 * 1024 } // 10MB
 });
 
-// Middleware function to handle profile uploads
+// Middleware function to handle profile uploads - FIXED VERSION
 const profileUploadMiddleware = (req, res, next) => {
   profileMulter.single('profilePicture')(req, res, (err) => {
     if (err) {
       console.error('❌ Profile upload error:', err.message);
       
+      // Create error object to pass to next()
+      const error = new Error(err.message);
+      error.code = err.code;
+      
       if (err.code === 'LIMIT_FILE_SIZE') {
-        return res.status(400).json({
-          success: false,
-          message: 'File too large. Maximum size is 5MB',
-          code: 'FILE_TOO_LARGE'
-        });
+        error.status = 400;
+        error.message = 'File too large. Maximum size is 5MB';
+        error.code = 'FILE_TOO_LARGE';
+      } else if (err.message.includes('Invalid file type')) {
+        error.status = 400;
+        error.message = err.message;
+        error.code = 'INVALID_FILE_TYPE';
+      } else {
+        error.status = 500;
+        error.message = `Upload failed: ${err.message}`;
+        error.code = 'UPLOAD_ERROR';
       }
       
-      if (err.message.includes('Invalid file type')) {
-        return res.status(400).json({
-          success: false,
-          message: err.message,
-          code: 'INVALID_FILE_TYPE'
-        });
-      }
-      
-      return res.status(500).json({
-        success: false,
-        message: `Upload failed: ${err.message}`,
-        code: 'UPLOAD_ERROR'
-      });
+      return next(error);
     }
     
     if (!req.file) {
-      return res.status(400).json({
-        success: false,
-        message: 'No file uploaded',
-        code: 'NO_FILE'
-      });
+      const error = new Error('No file uploaded');
+      error.status = 400;
+      error.code = 'NO_FILE';
+      return next(error);
     }
     
     console.log(`✅ Profile picture uploaded successfully:`, {
@@ -145,33 +142,34 @@ const profileUploadMiddleware = (req, res, next) => {
   });
 };
 
-// Middleware function to handle cover uploads
+// Middleware function to handle cover uploads - FIXED VERSION
 const coverUploadMiddleware = (req, res, next) => {
   coverMulter.single('coverPicture')(req, res, (err) => {
     if (err) {
       console.error('❌ Cover upload error:', err.message);
       
+      // Create error object to pass to next()
+      const error = new Error(err.message);
+      error.code = err.code;
+      
       if (err.code === 'LIMIT_FILE_SIZE') {
-        return res.status(400).json({
-          success: false,
-          message: 'File too large. Maximum size is 10MB',
-          code: 'FILE_TOO_LARGE'
-        });
+        error.status = 400;
+        error.message = 'File too large. Maximum size is 10MB';
+        error.code = 'FILE_TOO_LARGE';
+      } else {
+        error.status = 500;
+        error.message = `Upload failed: ${err.message}`;
+        error.code = 'UPLOAD_ERROR';
       }
       
-      return res.status(500).json({
-        success: false,
-        message: `Upload failed: ${err.message}`,
-        code: 'UPLOAD_ERROR'
-      });
+      return next(error);
     }
     
     if (!req.file) {
-      return res.status(400).json({
-        success: false,
-        message: 'No file uploaded',
-        code: 'NO_FILE'
-      });
+      const error = new Error('No file uploaded');
+      error.status = 400;
+      error.code = 'NO_FILE';
+      return next(error);
     }
     
     console.log(`✅ Cover picture uploaded successfully:`, {
@@ -194,33 +192,34 @@ module.exports = {
   profileUpload: profileUploadMiddleware,
   coverUpload: coverUploadMiddleware,
   
-  // Recipe uploads
+  // Recipe uploads - FIXED VERSION
   recipeUpload: (req, res, next) => {
     recipeMulter.single('image')(req, res, (err) => {
       if (err) {
         console.error('❌ Recipe upload error:', err.message);
         
+        // Create error object to pass to next()
+        const error = new Error(err.message);
+        error.code = err.code;
+        
         if (err.code === 'LIMIT_FILE_SIZE') {
-          return res.status(400).json({
-            success: false,
-            message: 'File too large. Maximum size is 10MB',
-            code: 'FILE_TOO_LARGE'
-          });
+          error.status = 400;
+          error.message = 'File too large. Maximum size is 10MB';
+          error.code = 'FILE_TOO_LARGE';
+        } else {
+          error.status = 500;
+          error.message = `Upload failed: ${err.message}`;
+          error.code = 'UPLOAD_ERROR';
         }
         
-        return res.status(500).json({
-          success: false,
-          message: `Upload failed: ${err.message}`,
-          code: 'UPLOAD_ERROR'
-        });
+        return next(error);
       }
       
       if (!req.file) {
-        return res.status(400).json({
-          success: false,
-          message: 'No file uploaded',
-          code: 'NO_FILE'
-        });
+        const error = new Error('No file uploaded');
+        error.status = 400;
+        error.code = 'NO_FILE';
+        return next(error);
       }
       
       next();

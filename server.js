@@ -130,10 +130,10 @@ app.post('/api/upload-test', recipeUpload, (req, res) => {
     message: 'File uploaded successfully',
     file: {
       url: req.file.path,
+      secure_url: req.file.secure_url,
       public_id: req.file.filename,
       format: req.file.format,
       bytes: req.file.size,
-      created_at: req.file.created_at,
       width: req.file.width,
       height: req.file.height
     }
@@ -176,10 +176,46 @@ mongoose.connection.on('disconnected', () => {
   console.log('⚠️ MongoDB disconnected');
 });
 
-// ============ Error Handling Middleware ============
+// ============ CRITICAL FIX: Enhanced Error Handling Middleware ============
 app.use((err, req, res, next) => {
-  console.error('Server Error:', err.message);
-  console.error('Error Stack:', err.stack);
+  console.error('📛 Server Error Handler Triggered:');
+  console.error('   Message:', err.message);
+  console.error('   Code:', err.code);
+  console.error('   Status:', err.status);
+  console.error('   Stack:', err.stack);
+  
+  // Handle upload errors from cloudinaryUpload middleware
+  if (err.code === 'FILE_TOO_LARGE') {
+    return res.status(400).json({
+      success: false,
+      message: err.message || 'File too large',
+      code: 'FILE_TOO_LARGE'
+    });
+  }
+  
+  if (err.code === 'INVALID_FILE_TYPE') {
+    return res.status(400).json({
+      success: false,
+      message: err.message || 'Invalid file type',
+      code: 'INVALID_FILE_TYPE'
+    });
+  }
+  
+  if (err.code === 'NO_FILE') {
+    return res.status(400).json({
+      success: false,
+      message: err.message || 'No file uploaded',
+      code: 'NO_FILE'
+    });
+  }
+  
+  if (err.code === 'UPLOAD_ERROR') {
+    return res.status(500).json({
+      success: false,
+      message: err.message || 'Upload failed',
+      code: 'UPLOAD_ERROR'
+    });
+  }
   
   // Handle CORS errors
   if (err.message === 'Not allowed by CORS') {
@@ -190,25 +226,88 @@ app.use((err, req, res, next) => {
     });
   }
   
-  res.status(500).json({ 
+  // Handle Multer errors
+  if (err.name === 'MulterError') {
+    return res.status(400).json({
+      success: false,
+      message: `Upload error: ${err.message}`,
+      code: 'MULTER_ERROR'
+    });
+  }
+  
+  // Handle validation errors
+  if (err.name === 'ValidationError') {
+    return res.status(400).json({
+      success: false,
+      message: 'Validation error',
+      errors: Object.values(err.errors).map(e => e.message),
+      code: 'VALIDATION_ERROR'
+    });
+  }
+  
+  // Handle JWT errors
+  if (err.name === 'JsonWebTokenError') {
+    return res.status(401).json({
+      success: false,
+      message: 'Invalid token',
+      code: 'INVALID_TOKEN'
+    });
+  }
+  
+  if (err.name === 'TokenExpiredError') {
+    return res.status(401).json({
+      success: false,
+      message: 'Token expired',
+      code: 'TOKEN_EXPIRED'
+    });
+  }
+  
+  // Default error response
+  const statusCode = err.status || 500;
+  const errorMessage = process.env.NODE_ENV === 'development' ? err.message : 'Something went wrong';
+  
+  res.status(statusCode).json({ 
+    success: false,
     message: "Internal Server Error", 
-    error: process.env.NODE_ENV === 'development' ? err.message : 'Something went wrong',
-    code: 'SERVER_ERROR'
+    error: errorMessage,
+    code: err.code || 'SERVER_ERROR',
+    ...(process.env.NODE_ENV === 'development' && { stack: err.stack })
   });
 });
 
 // ============ 404 Handler ============
 app.use('*', (req, res) => {
   res.status(404).json({ 
+    success: false,
     message: 'API endpoint not found',
     path: req.originalUrl,
-    method: req.method
+    method: req.method,
+    code: 'ENDPOINT_NOT_FOUND'
   });
 });
 
 // ============ Server Start ============
 const PORT = process.env.PORT || 5000;
 const HOST = process.env.HOST || '0.0.0.0';
+
+// Test middleware imports before starting server
+console.log('\n🔧 Testing middleware imports...');
+try {
+  const cloudinaryUpload = require('./middleware/cloudinaryUpload');
+  console.log('✅ cloudinaryUpload imported successfully');
+  console.log('   Available exports:', Object.keys(cloudinaryUpload));
+  
+  // Test if profileUpload is a function
+  if (typeof cloudinaryUpload.profileUpload === 'function') {
+    console.log('✅ profileUpload is a valid function');
+  } else {
+    console.log('❌ profileUpload is NOT a function:', typeof cloudinaryUpload.profileUpload);
+  }
+} catch (error) {
+  console.error('❌ Failed to import cloudinaryUpload:', error.message);
+}
+
+console.log('\n🚀 Starting server...');
 
 app.listen(PORT, HOST, () => {
   console.log(`🚀 Server running on http://${HOST}:${PORT}`);
@@ -225,4 +324,12 @@ app.listen(PORT, HOST, () => {
   console.log(`   BASE_URL: ${process.env.BASE_URL || 'Not set'}`);
   console.log(`   CLIENT_URL: ${process.env.CLIENT_URL || 'Not set'}`);
   console.log(`   FRONTEND_URL: ${process.env.FRONTEND_URL || 'Not set'}`);
+  
+  // Test routes
+  console.log('\n📋 Available API Routes:');
+  console.log('   POST /api/auth/register');
+  console.log('   POST /api/auth/login');
+  console.log('   POST /api/auth/profile/picture');
+  console.log('   POST /api/profile/cover');
+  console.log('   GET  /api/profile/stats');
 });
