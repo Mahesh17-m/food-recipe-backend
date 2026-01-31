@@ -3,6 +3,12 @@ const router = express.Router();
 const profileController = require('../controllers/profileController');
 const { uploadCoverPicture } = require('../middleware/cloudinaryUpload');
 
+// Debug middleware imports
+console.log('🔍 Profile Routes - Checking imports:');
+console.log('   profileController type:', typeof profileController);
+console.log('   profileController.uploadCoverPicture exists:', 'uploadCoverPicture' in profileController);
+console.log('   uploadCoverPicture type:', typeof uploadCoverPicture);
+
 // Authentication middleware
 const requireAuth = (req, res, next) => {
   if (!req.user) {
@@ -25,8 +31,19 @@ router.get('/stats/:userId', profileController.getUserStats);
 router.get('/:userId', profileController.getUserProfile);
 router.get('/author/:userId', profileController.getAuthorProfile);
 
-// Upload routes - NOTE: profile picture upload is in authRoutes.js
-router.post('/cover', uploadCoverPicture, profileController.uploadCoverPicture);
+// Upload routes - FIXED: Add proper error handling
+if (typeof uploadCoverPicture === 'function' && 'uploadCoverPicture' in profileController) {
+  router.post('/cover', uploadCoverPicture, profileController.uploadCoverPicture);
+} else {
+  console.warn('⚠️ uploadCoverPicture middleware or controller method not available');
+  router.post('/cover', requireAuth, (req, res) => {
+    res.status(501).json({
+      success: false,
+      message: 'Cover picture upload temporarily unavailable',
+      code: 'FEATURE_DISABLED'
+    });
+  });
+}
 
 // Follow routes
 router.post('/follow/:userId', profileController.toggleFollow);
