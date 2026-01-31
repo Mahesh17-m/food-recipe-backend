@@ -3,6 +3,7 @@ const Recipe = require('../models/Recipe');
 const Review = require('../models/Review');
 const userService = require('../Services/userService');
 const notificationController = require('./notificationController');
+const middleware = require('../middleware/cloudinaryUpload')
 
 const calculateUserLevel = (stats) => {
   const points = (stats.recipesCount || 0) * 10 + 
