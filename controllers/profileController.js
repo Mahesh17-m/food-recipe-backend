@@ -210,6 +210,7 @@ exports.updateProfile = async (req, res) => {
 };
 
 // Upload Profile Picture - CLOUDINARY VERSION
+// In profileController.js - verify these methods exist:
 exports.uploadProfilePicture = async (req, res) => {
   try {
     if (!req.file) {
@@ -218,33 +219,30 @@ exports.uploadProfilePicture = async (req, res) => {
         code: 'NO_FILE'
       });
     }
-
+    
+    console.log('📸 Cloudinary upload successful:', req.file.path);
+    
+    // Update user with Cloudinary URL
     const user = await User.findById(req.user.id);
     if (!user) {
-      return res.status(404).json({
+      return res.status(404).json({ 
         message: 'User not found',
         code: 'USER_NOT_FOUND'
       });
     }
-
-    // Update with Cloudinary URL
+    
     user.profilePicture = req.file.path; // Cloudinary URL
     user.lastActive = Date.now();
     await user.save();
-
-    const stats = await userService.getEnrichedUserStats(user._id);
-    const userLevel = calculateUserLevel(stats);
-
-    res.json({ 
+    
+    res.json({
       message: 'Profile picture updated successfully',
       profilePicture: req.file.path,
       user: {
         _id: user._id,
         email: user.email,
         name: user.name,
-        profilePicture: req.file.path,
-        ...stats,
-        userLevel
+        profilePicture: req.file.path
       }
     });
   } catch (err) {
@@ -256,7 +254,6 @@ exports.uploadProfilePicture = async (req, res) => {
   }
 };
 
-// Upload Cover Picture - CLOUDINARY VERSION
 exports.uploadCoverPicture = async (req, res) => {
   try {
     if (!req.file) {
@@ -265,33 +262,29 @@ exports.uploadCoverPicture = async (req, res) => {
         code: 'NO_FILE'
       });
     }
-
+    
+    console.log('📸 Cloudinary cover upload successful:', req.file.path);
+    
     const user = await User.findById(req.user.id);
     if (!user) {
-      return res.status(404).json({
+      return res.status(404).json({ 
         message: 'User not found',
         code: 'USER_NOT_FOUND'
       });
     }
-
-    // Update with Cloudinary URL
+    
     user.coverPicture = req.file.path; // Cloudinary URL
     user.lastActive = Date.now();
     await user.save();
-
-    const stats = await userService.getEnrichedUserStats(user._id);
-    const userLevel = calculateUserLevel(stats);
-
-    res.json({ 
+    
+    res.json({
       message: 'Cover picture updated successfully',
       coverPicture: req.file.path,
       user: {
         _id: user._id,
         email: user.email,
         name: user.name,
-        coverPicture: req.file.path,
-        ...stats,
-        userLevel
+        coverPicture: req.file.path
       }
     });
   } catch (err) {
