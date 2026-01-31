@@ -254,44 +254,70 @@ exports.uploadProfilePicture = async (req, res) => {
   }
 };
 
+// In profileController.js - uploadCoverPicture function
 exports.uploadCoverPicture = async (req, res) => {
   try {
+    console.log('📸 Cover upload request received:', {
+      hasFile: !!req.file,
+      file: req.file,
+      userId: req.user?.id,
+      headers: req.headers
+    });
+
     if (!req.file) {
+      console.log('❌ No file in request');
       return res.status(400).json({ 
         message: 'No file uploaded',
         code: 'NO_FILE'
       });
     }
-    
-    console.log('📸 Cloudinary cover upload successful:', req.file.path);
-    
+
+    console.log('✅ File received from Cloudinary middleware:', {
+      path: req.file.path,
+      filename: req.file.filename,
+      size: req.file.size
+    });
+
     const user = await User.findById(req.user.id);
     if (!user) {
-      return res.status(404).json({ 
+      console.log('❌ User not found:', req.user.id);
+      return res.status(404).json({
         message: 'User not found',
         code: 'USER_NOT_FOUND'
       });
     }
-    
-    user.coverPicture = req.file.path; // Cloudinary URL
+
+    // Update with Cloudinary URL
+    user.coverPicture = req.file.path;
     user.lastActive = Date.now();
     await user.save();
-    
-    res.json({
+
+    console.log('✅ Cover picture updated:', {
+      userId: user._id,
+      email: user.email,
+      coverPicture: user.coverPicture
+    });
+
+    res.json({ 
+      success: true,
       message: 'Cover picture updated successfully',
-      coverPicture: req.file.path,
+      coverPicture: user.coverPicture,
       user: {
         _id: user._id,
         email: user.email,
         name: user.name,
-        coverPicture: req.file.path
+        coverPicture: user.coverPicture
       }
     });
+    
   } catch (err) {
-    console.error('❌ Upload cover picture error:', err);
+    console.error('❌ Cover upload error:', err);
+    console.error('Error stack:', err.stack);
     res.status(500).json({ 
+      success: false,
       message: 'Failed to update cover picture',
-      code: 'COVER_UPDATE_ERROR'
+      code: 'COVER_UPDATE_ERROR',
+      error: process.env.NODE_ENV === 'development' ? err.message : undefined
     });
   }
 };
