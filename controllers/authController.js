@@ -3,8 +3,90 @@ const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const notificationController = require('./notificationController');
 const crypto = require('crypto');
-const emailService = require('../Services/emailService'); // Add this line
+const emailService = require('../Services/emailService');
 
+// Auth controller upload methods - FIXED
+exports.uploadProfilePicture = async (req, res) => {
+  try {
+    console.log('📸 Auth profile upload request received:', {
+      hasFile: !!req.file,
+      file: req.file,
+      userId: req.user?.id
+    });
+
+    if (!req.file) {
+      console.log('❌ No file in request');
+      return res.status(400).json({ 
+        success: false,
+        message: 'No file uploaded',
+        code: 'NO_FILE'
+      });
+    }
+
+    console.log('✅ File received from Cloudinary middleware:', {
+      path: req.file.path,
+      secure_url: req.file.secure_url,
+      url: req.file.url,
+      filename: req.file.originalname
+    });
+
+    const user = await User.findById(req.user.id);
+    if (!user) {
+      console.log('❌ User not found:', req.user.id);
+      return res.status(404).json({
+        success: false,
+        message: 'User not found',
+        code: 'USER_NOT_FOUND'
+      });
+    }
+
+    // Use the Cloudinary URL - prioritize secure_url
+    const profilePictureUrl = req.file.secure_url || req.file.path || req.file.url;
+    
+    if (!profilePictureUrl) {
+      console.log('❌ No URL in file object');
+      return res.status(500).json({
+        success: false,
+        message: 'Upload failed - no URL returned',
+        code: 'UPLOAD_FAILED'
+      });
+    }
+
+    // Update user with Cloudinary URL
+    user.profilePicture = profilePictureUrl;
+    user.lastActive = Date.now();
+    await user.save();
+
+    console.log('✅ Profile picture updated via auth route:', {
+      userId: user._id,
+      profilePicture: user.profilePicture
+    });
+
+    res.json({ 
+      success: true,
+      message: 'Profile picture updated successfully',
+      profilePicture: user.profilePicture,
+      user: {
+        _id: user._id,
+        email: user.email,
+        name: user.name,
+        username: user.username,
+        profilePicture: user.profilePicture,
+        coverPicture: user.coverPicture
+      }
+    });
+    
+  } catch (err) {
+    console.error('❌ Auth profile upload error:', err);
+    res.status(500).json({ 
+      success: false,
+      message: 'Failed to update profile picture',
+      code: 'PROFILE_UPDATE_ERROR'
+    });
+  }
+};
+
+// ... rest of your authController code remains the same ...
 exports.register = async (req, res) => {
   const { name, email, password, username } = req.body;
 
@@ -48,7 +130,7 @@ exports.register = async (req, res) => {
     await newUser.save();
     console.log('✅ User saved successfully:', newUser.email);
 
-    // FIXED: Create welcome notification AFTER user is saved
+    // Create welcome notification AFTER user is saved
     try {
       await notificationController.createWelcomeNotification(newUser._id);
       console.log('✅ Welcome notification created for:', newUser.email);
@@ -134,7 +216,7 @@ exports.login = async (req, res) => {
       });
     }
 
-    // FIXED: Create login notification with error handling
+    // Create login notification with error handling
     try {
       await notificationController.createLoginNotification(user._id);
       console.log('✅ Login notification created for:', user.email);

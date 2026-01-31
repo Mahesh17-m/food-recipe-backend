@@ -3,7 +3,6 @@ const Recipe = require('../models/Recipe');
 const Review = require('../models/Review');
 const userService = require('../Services/userService');
 const notificationController = require('./notificationController');
-const middleware = require('../middleware/cloudinaryUpload')
 
 const calculateUserLevel = (stats) => {
   const points = (stats.recipesCount || 0) * 10 + 
@@ -209,64 +208,20 @@ exports.updateProfile = async (req, res) => {
   }
 };
 
-// Upload Profile Picture - CLOUDINARY VERSION
-// In profileController.js - verify these methods exist:
+// Upload Profile Picture - FIXED
 exports.uploadProfilePicture = async (req, res) => {
   try {
-    if (!req.file) {
-      return res.status(400).json({ 
-        message: 'No file uploaded',
-        code: 'NO_FILE'
-      });
-    }
-    
-    console.log('📸 Cloudinary upload successful:', req.file.path);
-    
-    // Update user with Cloudinary URL
-    const user = await User.findById(req.user.id);
-    if (!user) {
-      return res.status(404).json({ 
-        message: 'User not found',
-        code: 'USER_NOT_FOUND'
-      });
-    }
-    
-    user.profilePicture = req.file.path; // Cloudinary URL
-    user.lastActive = Date.now();
-    await user.save();
-    
-    res.json({
-      message: 'Profile picture updated successfully',
-      profilePicture: req.file.path,
-      user: {
-        _id: user._id,
-        email: user.email,
-        name: user.name,
-        profilePicture: req.file.path
-      }
-    });
-  } catch (err) {
-    console.error('❌ Upload profile picture error:', err);
-    res.status(500).json({ 
-      message: 'Failed to update profile picture',
-      code: 'PROFILE_UPDATE_ERROR'
-    });
-  }
-};
-
-// In profileController.js - uploadCoverPicture function
-exports.uploadCoverPicture = async (req, res) => {
-  try {
-    console.log('📸 Cover upload request received:', {
+    console.log('📸 Profile upload request received:', {
       hasFile: !!req.file,
       file: req.file,
       userId: req.user?.id,
-      headers: req.headers
+      body: req.body
     });
 
     if (!req.file) {
       console.log('❌ No file in request');
       return res.status(400).json({ 
+        success: false,
         message: 'No file uploaded',
         code: 'NO_FILE'
       });
@@ -274,7 +229,9 @@ exports.uploadCoverPicture = async (req, res) => {
 
     console.log('✅ File received from Cloudinary middleware:', {
       path: req.file.path,
-      filename: req.file.filename,
+      secure_url: req.file.secure_url,
+      url: req.file.url,
+      filename: req.file.originalname,
       size: req.file.size
     });
 
@@ -282,13 +239,118 @@ exports.uploadCoverPicture = async (req, res) => {
     if (!user) {
       console.log('❌ User not found:', req.user.id);
       return res.status(404).json({
+        success: false,
         message: 'User not found',
         code: 'USER_NOT_FOUND'
       });
     }
 
-    // Update with Cloudinary URL
-    user.coverPicture = req.file.path;
+    // Use the Cloudinary URL - prioritize secure_url
+    const profilePictureUrl = req.file.secure_url || req.file.path || req.file.url;
+    
+    if (!profilePictureUrl) {
+      console.log('❌ No URL in file object');
+      return res.status(500).json({
+        success: false,
+        message: 'Upload failed - no URL returned',
+        code: 'UPLOAD_FAILED'
+      });
+    }
+
+    // Update user with Cloudinary URL
+    user.profilePicture = profilePictureUrl;
+    user.lastActive = Date.now();
+    await user.save();
+
+    console.log('✅ Profile picture updated:', {
+      userId: user._id,
+      email: user.email,
+      profilePicture: user.profilePicture
+    });
+
+    // Get updated stats
+    const stats = await userService.getEnrichedUserStats(user._id);
+    const userLevel = calculateUserLevel(stats);
+
+    res.json({ 
+      success: true,
+      message: 'Profile picture updated successfully',
+      profilePicture: user.profilePicture,
+      user: {
+        _id: user._id,
+        email: user.email,
+        name: user.name,
+        username: user.username,
+        profilePicture: user.profilePicture,
+        coverPicture: user.coverPicture,
+        ...stats,
+        userLevel
+      }
+    });
+    
+  } catch (err) {
+    console.error('❌ Profile upload error:', err);
+    console.error('Error stack:', err.stack);
+    res.status(500).json({ 
+      success: false,
+      message: 'Failed to update profile picture',
+      code: 'PROFILE_UPDATE_ERROR',
+      error: process.env.NODE_ENV === 'development' ? err.message : undefined
+    });
+  }
+};
+
+// Upload Cover Picture - FIXED
+exports.uploadCoverPicture = async (req, res) => {
+  try {
+    console.log('📸 Cover upload request received:', {
+      hasFile: !!req.file,
+      file: req.file,
+      userId: req.user?.id,
+      body: req.body
+    });
+
+    if (!req.file) {
+      console.log('❌ No file in request');
+      return res.status(400).json({ 
+        success: false,
+        message: 'No file uploaded',
+        code: 'NO_FILE'
+      });
+    }
+
+    console.log('✅ File received from Cloudinary middleware:', {
+      path: req.file.path,
+      secure_url: req.file.secure_url,
+      url: req.file.url,
+      filename: req.file.originalname,
+      size: req.file.size
+    });
+
+    const user = await User.findById(req.user.id);
+    if (!user) {
+      console.log('❌ User not found:', req.user.id);
+      return res.status(404).json({
+        success: false,
+        message: 'User not found',
+        code: 'USER_NOT_FOUND'
+      });
+    }
+
+    // Use the Cloudinary URL - prioritize secure_url
+    const coverPictureUrl = req.file.secure_url || req.file.path || req.file.url;
+    
+    if (!coverPictureUrl) {
+      console.log('❌ No URL in file object');
+      return res.status(500).json({
+        success: false,
+        message: 'Upload failed - no URL returned',
+        code: 'UPLOAD_FAILED'
+      });
+    }
+
+    // Update user with Cloudinary URL
+    user.coverPicture = coverPictureUrl;
     user.lastActive = Date.now();
     await user.save();
 
@@ -298,6 +360,10 @@ exports.uploadCoverPicture = async (req, res) => {
       coverPicture: user.coverPicture
     });
 
+    // Get updated stats
+    const stats = await userService.getEnrichedUserStats(user._id);
+    const userLevel = calculateUserLevel(stats);
+
     res.json({ 
       success: true,
       message: 'Cover picture updated successfully',
@@ -306,7 +372,11 @@ exports.uploadCoverPicture = async (req, res) => {
         _id: user._id,
         email: user.email,
         name: user.name,
-        coverPicture: user.coverPicture
+        username: user.username,
+        profilePicture: user.profilePicture,
+        coverPicture: user.coverPicture,
+        ...stats,
+        userLevel
       }
     });
     
@@ -321,6 +391,7 @@ exports.uploadCoverPicture = async (req, res) => {
     });
   }
 };
+
 // Get User Badges
 exports.getUserBadges = async (req, res) => {
   try {
@@ -519,7 +590,7 @@ exports.getAuthorProfile = async (req, res) => {
   }
 };
 
-// Toggle Follow - FIXED with proper notification handling
+// Toggle Follow
 exports.toggleFollow = async (req, res) => {
   try {
     const { userId } = req.params;
@@ -573,8 +644,6 @@ exports.toggleFollow = async (req, res) => {
       
       // Send notification only when following (not unfollowing)
       try {
-        // FIXED: Use only createFollowNotification (not createNewFollowerNotification)
-        // Both were sending the same notification type
         await notificationController.createFollowNotification(currentUserId, userId);
         console.log('✅ Follow notification sent to:', userId);
       } catch (notificationError) {
@@ -799,4 +868,4 @@ exports.getUserActivity = async (req, res) => {
       code: 'SERVER_ERROR'
     });
   }
-}
+};
