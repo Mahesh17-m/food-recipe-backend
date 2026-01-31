@@ -1,8 +1,6 @@
 const User = require('../models/User');
 const Recipe = require('../models/Recipe');
 const Review = require('../models/Review');
-const fs = require('fs');
-const path = require('path');
 const userService = require('../Services/userService');
 const notificationController = require('./notificationController');
 
@@ -21,7 +19,7 @@ const calculateUserLevel = (stats) => {
   return 'New Cook';
 };
 
-// Get User Stats endpoint - FIXED with proper stats calculation
+// Get User Stats endpoint
 exports.getUserStats = async (req, res) => {
   try {
     console.log('📊 Getting user stats for:', req.params.userId || req.user.id);
@@ -210,7 +208,7 @@ exports.updateProfile = async (req, res) => {
   }
 };
 
-// Upload Profile Picture - FIXED to return proper response
+// Upload Profile Picture - CLOUDINARY VERSION
 exports.uploadProfilePicture = async (req, res) => {
   try {
     if (!req.file) {
@@ -221,17 +219,15 @@ exports.uploadProfilePicture = async (req, res) => {
     }
 
     const user = await User.findById(req.user.id);
-    
-    // Delete old picture if exists (not default)
-    if (user.profilePicture && !user.profilePicture.includes('default-avatar')) {
-      const oldImagePath = path.join(__dirname, '..', user.profilePicture);
-      if (fs.existsSync(oldImagePath)) {
-        fs.unlinkSync(oldImagePath);
-      }
+    if (!user) {
+      return res.status(404).json({
+        message: 'User not found',
+        code: 'USER_NOT_FOUND'
+      });
     }
 
-    const imageUrl = `/uploads/profile/${req.file.filename}`;
-    user.profilePicture = imageUrl;
+    // Update with Cloudinary URL
+    user.profilePicture = req.file.path; // Cloudinary URL
     user.lastActive = Date.now();
     await user.save();
 
@@ -239,22 +235,27 @@ exports.uploadProfilePicture = async (req, res) => {
     const userLevel = calculateUserLevel(stats);
 
     res.json({ 
-      ...user.toObject(),
-      password: undefined,
-      ...stats,
-      userLevel,
-      message: 'Profile picture updated successfully'
+      message: 'Profile picture updated successfully',
+      profilePicture: req.file.path,
+      user: {
+        _id: user._id,
+        email: user.email,
+        name: user.name,
+        profilePicture: req.file.path,
+        ...stats,
+        userLevel
+      }
     });
   } catch (err) {
-    console.error('Upload profile picture error:', err);
+    console.error('❌ Upload profile picture error:', err);
     res.status(500).json({ 
-      message: 'Server error',
-      code: 'SERVER_ERROR'
+      message: 'Failed to update profile picture',
+      code: 'PROFILE_UPDATE_ERROR'
     });
   }
 };
 
-// Upload Cover Picture - FIXED to return proper response
+// Upload Cover Picture - CLOUDINARY VERSION
 exports.uploadCoverPicture = async (req, res) => {
   try {
     if (!req.file) {
@@ -265,43 +266,41 @@ exports.uploadCoverPicture = async (req, res) => {
     }
 
     const user = await User.findById(req.user.id);
-    
-    // Delete old cover picture if exists (not default)
-    if (user.coverPicture && !user.coverPicture.includes('default-cover')) {
-      const oldImagePath = path.join(__dirname, '..', user.coverPicture);
-      if (fs.existsSync(oldImagePath)) {
-        fs.unlinkSync(oldImagePath);
-      }
+    if (!user) {
+      return res.status(404).json({
+        message: 'User not found',
+        code: 'USER_NOT_FOUND'
+      });
     }
 
-    const imageUrl = `/uploads/profile/cover/${req.file.filename}`;
-    user.coverPicture = imageUrl;
+    // Update with Cloudinary URL
+    user.coverPicture = req.file.path; // Cloudinary URL
     user.lastActive = Date.now();
     await user.save();
 
     const stats = await userService.getEnrichedUserStats(user._id);
     const userLevel = calculateUserLevel(stats);
 
-    // Return the user object with coverPicture
-    const userResponse = user.toObject();
-    delete userResponse.password;
-
     res.json({ 
-      ...userResponse,
-      ...stats,
-      userLevel,
-      coverPicture: imageUrl, // Ensure coverPicture is included
-      message: 'Cover picture updated successfully'
+      message: 'Cover picture updated successfully',
+      coverPicture: req.file.path,
+      user: {
+        _id: user._id,
+        email: user.email,
+        name: user.name,
+        coverPicture: req.file.path,
+        ...stats,
+        userLevel
+      }
     });
   } catch (err) {
-    console.error('Upload cover picture error:', err);
+    console.error('❌ Upload cover picture error:', err);
     res.status(500).json({ 
-      message: 'Server error',
-      code: 'SERVER_ERROR'
+      message: 'Failed to update cover picture',
+      code: 'COVER_UPDATE_ERROR'
     });
   }
 };
-
 // Get User Badges
 exports.getUserBadges = async (req, res) => {
   try {

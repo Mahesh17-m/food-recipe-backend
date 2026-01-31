@@ -2,8 +2,6 @@ const mongoose = require('mongoose');
 const Recipe = require('../models/Recipe');
 const User = require('../models/User');
 const Review = require('../models/Review');
-const path = require('path');
-const fs = require('fs');
 const { calculateAverageRating } = require('../Services/recipeService');
 const notificationController = require('./notificationController');
 
@@ -12,8 +10,9 @@ const parseArrayData = (data) => Array.isArray(data) ? data : JSON.parse(data);
 
 exports.createRecipe = async (req, res) => {
   try {
-    console.log('📝 Creating recipe - Files:', req.file);
-    console.log('📝 Request body:', req.body);
+    console.log('📝 Creating recipe with Cloudinary...');
+    console.log('📸 Uploaded file:', req.file ? req.file.path : 'No file');
+    console.log('📦 Request body:', req.body);
 
     let recipeData;
     if (req.body.data) {
@@ -74,8 +73,13 @@ exports.createRecipe = async (req, res) => {
     };
 
     if (req.file) {
-      console.log('📸 Processing uploaded file:', req.file.filename);
-      finalRecipeData.imageUrl = `/uploads/recipes/${req.file.filename}`;
+      console.log('📸 Cloudinary image uploaded:', req.file.path);
+      finalRecipeData.imageUrl = req.file.path; // Cloudinary URL
+    } else {
+      return res.status(400).json({
+        message: 'Recipe image is required',
+        code: 'IMAGE_REQUIRED'
+      });
     }
 
     // Create and save the recipe first
@@ -154,39 +158,13 @@ exports.updateRecipe = async (req, res) => {
     if (updates.ingredients) updates.ingredients = parseArrayData(updates.ingredients);
     if (updates.instructions) updates.instructions = parseArrayData(updates.instructions);
 
-    // Handle image updates
+    // Handle Cloudinary image updates
     if (req.file) {
-      console.log('New image uploaded:', req.file.filename);
-      
-      let filename = req.file.filename;
-      if (filename.includes('@')) {
-        filename = filename.replace(/@/g, '');
-        const oldPath = req.file.path;
-        const newPath = path.join(path.dirname(oldPath), filename);
-        fs.renameSync(oldPath, newPath);
-        console.log(`✅ Fixed filename: ${req.file.filename} -> ${filename}`);
-      }
-      
-      updates.imageUrl = `/uploads/recipes/${filename}`;
-      
-      // Delete old image if it exists
-      if (recipe.imageUrl) {
-        const oldImagePath = path.join(__dirname, '..', recipe.imageUrl);
-        if (fs.existsSync(oldImagePath)) {
-          fs.unlinkSync(oldImagePath);
-          console.log(`🗑️ Deleted old image: ${oldImagePath}`);
-        }
-      }
+      console.log('📸 New Cloudinary image uploaded:', req.file.path);
+      updates.imageUrl = req.file.path; // Cloudinary URL
     } else if (req.body.image === '') {
       // Handle image removal when image field is empty string
       console.log('Image removal requested');
-      if (recipe.imageUrl) {
-        const oldImagePath = path.join(__dirname, '..', recipe.imageUrl);
-        if (fs.existsSync(oldImagePath)) {
-          fs.unlinkSync(oldImagePath);
-          console.log(`🗑️ Deleted old image: ${oldImagePath}`);
-        }
-      }
       updates.imageUrl = ''; // Remove image URL
     }
 
@@ -384,6 +362,68 @@ exports.getUserRecipes = async (req, res) => {
   }
 };
 
+exports.deleteRecipe = async (req, res) => {
+  try {
+    if (!isValidObjectId(req.params.id)) {
+      return res.status(400).json({ 
+        message: 'Invalid recipe ID format',
+        code: 'INVALID_ID'
+      });
+    }
+
+    const recipe = await Recipe.findById(req.params.id);
+    if (!recipe) {
+      return res.status(404).json({ 
+        message: 'Recipe not found',
+        code: 'RECIPE_NOT_FOUND'
+      });
+    }
+
+    if (recipe.author.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ 
+        message: 'Not authorized to delete this recipe',
+        code: 'UNAUTHORIZED'
+      });
+    }
+
+    // Note: Cloudinary images remain on their servers
+    // You might want to delete them using cloudinary.uploader.destroy()
+    if (recipe.imageUrl && recipe.imageUrl.includes('cloudinary')) {
+      console.log('📸 Recipe image stored on Cloudinary:', recipe.imageUrl);
+    }
+
+    // Remove from users' favorites
+    await User.updateMany(
+      { favorites: req.params.id },
+      { $pull: { favorites: req.params.id } }
+    );
+
+    // Delete associated reviews
+    await Review.deleteMany({ recipe: req.params.id });
+
+    // Delete the recipe
+    await Recipe.deleteOne({ _id: req.params.id });
+
+    // Update user's recipes count
+    await User.findByIdAndUpdate(req.user._id, {
+      $pull: { recipes: req.params.id },
+      $inc: { recipesCount: -1 }
+    });
+
+    res.json({ 
+      message: 'Recipe deleted successfully',
+      id: req.params.id
+    });
+  } catch (error) {
+    console.error('Delete recipe error:', error);
+    res.status(500).json({ 
+      message: 'Error deleting recipe',
+      code: 'SERVER_ERROR'
+    });
+  }
+};
+
+
 exports.getSavedRecipes = async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
@@ -437,70 +477,6 @@ exports.getFavoriteRecipes = async (req, res) => {
     console.error('Get favorite recipes error:', error);
     res.status(500).json({ 
       message: 'Error fetching favorites',
-      code: 'SERVER_ERROR'
-    });
-  }
-};
-
-exports.deleteRecipe = async (req, res) => {
-  try {
-    if (!isValidObjectId(req.params.id)) {
-      return res.status(400).json({ 
-        message: 'Invalid recipe ID format',
-        code: 'INVALID_ID'
-      });
-    }
-
-    const recipe = await Recipe.findById(req.params.id);
-    if (!recipe) {
-      return res.status(404).json({ 
-        message: 'Recipe not found',
-        code: 'RECIPE_NOT_FOUND'
-      });
-    }
-
-    if (recipe.author.toString() !== req.user._id.toString()) {
-      return res.status(403).json({ 
-        message: 'Not authorized to delete this recipe',
-        code: 'UNAUTHORIZED'
-      });
-    }
-
-    // Delete the image file
-    if (recipe.imageUrl) {
-      const imagePath = path.join(__dirname, '..', recipe.imageUrl);
-      if (fs.existsSync(imagePath)) {
-        fs.unlinkSync(imagePath);
-        console.log(`🗑️ Deleted recipe image: ${imagePath}`);
-      }
-    }
-
-    // Remove from users' favorites
-    await User.updateMany(
-      { favorites: req.params.id },
-      { $pull: { favorites: req.params.id } }
-    );
-
-    // Delete associated reviews
-    await Review.deleteMany({ recipe: req.params.id });
-
-    // Delete the recipe
-    await Recipe.deleteOne({ _id: req.params.id });
-
-    // Update user's recipes count
-    await User.findByIdAndUpdate(req.user._id, {
-      $pull: { recipes: req.params.id },
-      $inc: { recipesCount: -1 }
-    });
-
-    res.json({ 
-      message: 'Recipe deleted successfully',
-      id: req.params.id
-    });
-  } catch (error) {
-    console.error('Delete recipe error:', error);
-    res.status(500).json({ 
-      message: 'Error deleting recipe',
       code: 'SERVER_ERROR'
     });
   }
