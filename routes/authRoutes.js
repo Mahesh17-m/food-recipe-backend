@@ -8,7 +8,7 @@ const { auth } = require('../middleware/authMiddleware');
 const passport = require('passport');
 const User = require('../models/User');
 const jwt = require('jsonwebtoken');
-const { profileUpload } = require('../middleware/upload');
+const { profileUpload } = require('../middleware/cloudinaryUpload');
 
 // Rate limiting
 const authLimiter = rateLimit({
