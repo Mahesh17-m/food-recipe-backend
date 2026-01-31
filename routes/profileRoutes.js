@@ -1,9 +1,21 @@
-// In your routes file (e.g., routes/profile.js)
 const express = require('express');
 const router = express.Router();
 const profileController = require('../controllers/profileController');
-const authController = require('../controllers/authController');
 const { uploadProfilePicture, uploadCoverPicture } = require('../middleware/cloudinaryUpload');
+
+// Authentication middleware
+const requireAuth = (req, res, next) => {
+  if (!req.user) {
+    return res.status(401).json({ 
+      message: 'Authentication required',
+      code: 'UNAUTHORIZED' 
+    });
+  }
+  next();
+};
+
+// Apply authentication to all profile routes
+router.use(requireAuth);
 
 // Profile routes
 router.get('/', profileController.getProfile);
@@ -13,7 +25,7 @@ router.get('/stats/:userId', profileController.getUserStats);
 router.get('/:userId', profileController.getUserProfile);
 router.get('/author/:userId', profileController.getAuthorProfile);
 
-// Upload routes - FIXED with correct middleware
+// Upload routes
 router.post('/picture', uploadProfilePicture, profileController.uploadProfilePicture);
 router.post('/cover', uploadCoverPicture, profileController.uploadCoverPicture);
 

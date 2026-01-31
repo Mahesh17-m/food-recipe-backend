@@ -73,14 +73,16 @@ router.post('/refresh-token', (req, res) => {
     return res.status(403).json({ message: 'Invalid refresh token', code: 'INVALID_REFRESH_TOKEN' });
   }
 });
-router.get('/google', oauthController.googleAuth);
 
+// Google OAuth routes
+router.get('/google', oauthController.googleAuth);
 router.get('/google/callback', oauthController.googleCallback);
 
 // Link Google account (requires authentication)
 router.post('/link-google', auth, async (req, res) => {
   await oauthController.linkGoogleAccount(req, res);
 });
+
 // Forgot password
 router.post('/forgot-password', 
   passwordResetLimiter,
@@ -95,9 +97,11 @@ router.post('/forgot-password',
     await authController.forgotPassword(req, res);
   }
 );
+
 router.get('/verify-reset-token/:token', async (req, res) => {
   await authController.verifyResetToken(req, res);
 });
+
 // Reset password
 router.post('/reset-password',
   [
@@ -114,6 +118,7 @@ router.post('/reset-password',
     await authController.resetPassword(req, res);
   }
 );
+
 router.post('/check-auth-method', async (req, res) => {
   try {
     const { email } = req.body;
@@ -148,6 +153,7 @@ router.post('/check-auth-method', async (req, res) => {
     });
   }
 });
+
 // Logout
 router.post('/logout', (req, res) => {
   console.log('Route: POST /logout');
@@ -167,50 +173,9 @@ router.get('/profile', auth, async (req, res) => {
   }
 });
 
-// Profile picture upload - FIXED: Added proper controller function
-// Profile picture upload
-router.post('/profile/picture', auth, profileUpload, async (req, res) => {
-  try {
-    if (!req.file) {
-      return res.status(400).json({ 
-        message: 'No file uploaded',
-        code: 'NO_FILE'
-      });
-    }
+// Profile picture upload - FIXED: Use the controller function directly
+router.post('/profile/picture', auth, profileUpload, authController.uploadProfilePicture);
 
-    const user = await User.findById(req.user.id);
-    
-    // Delete old picture if exists (not default)
-    if (user.profilePicture && !user.profilePicture.includes('default-avatar')) {
-      const fs = require('fs');
-      const path = require('path');
-      const oldImagePath = path.join(__dirname, '..', user.profilePicture);
-      if (fs.existsSync(oldImagePath)) {
-        fs.unlinkSync(oldImagePath);
-      }
-    }
-
-    // Fix: Ensure the path is correct
-    const imageUrl = `/uploads/profile/${req.file.filename}`;
-    user.profilePicture = imageUrl;
-    await user.save();
-
-    // Return the updated user with proper image URL
-    const updatedUser = await User.findById(req.user.id)
-      .select('-password -resetPasswordToken -resetPasswordExpires');
-
-    res.json({ 
-      ...updatedUser.toObject(),
-      message: 'Profile picture updated successfully'
-    });
-  } catch (err) {
-    console.error('Upload profile picture error:', err);
-    res.status(500).json({ 
-      message: 'Server error',
-      code: 'SERVER_ERROR'
-    });
-  }
-});
 // Update profile
 router.put('/profile', auth, async (req, res) => {
   try {
