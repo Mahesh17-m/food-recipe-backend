@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const profileController = require('../controllers/profileController');
-const { uploadProfilePicture, uploadCoverPicture } = require('../middleware/cloudinaryUpload');
+const { uploadCoverPicture } = require('../middleware/cloudinaryUpload');
 
 // Authentication middleware
 const requireAuth = (req, res, next) => {
@@ -25,8 +25,7 @@ router.get('/stats/:userId', profileController.getUserStats);
 router.get('/:userId', profileController.getUserProfile);
 router.get('/author/:userId', profileController.getAuthorProfile);
 
-// Upload routes
-router.post('/picture', uploadProfilePicture, profileController.uploadProfilePicture);
+// Upload routes - NOTE: profile picture upload is in authRoutes.js
 router.post('/cover', uploadCoverPicture, profileController.uploadCoverPicture);
 
 // Follow routes

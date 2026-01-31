@@ -75,107 +75,167 @@ const recipeStorage = createCloudinaryStorage('recipes', [
 ]);
 
 // Create multer uploaders
-const profileUpload = multer({
+const profileMulter = multer({
   storage: profileStorage,
   fileFilter: imageFilter,
   limits: { fileSize: 5 * 1024 * 1024 } // 5MB
 });
 
-const coverUpload = multer({
+const coverMulter = multer({
   storage: coverStorage,
   fileFilter: imageFilter,
   limits: { fileSize: 10 * 1024 * 1024 } // 10MB
 });
 
-const recipeUpload = multer({
+const recipeMulter = multer({
   storage: recipeStorage,
   fileFilter: imageFilter,
   limits: { fileSize: 10 * 1024 * 1024 } // 10MB
 });
 
-// Middleware functions
-exports.uploadProfilePicture = (req, res, next) => {
-  profileUpload.single('profilePicture')(req, res, (err) => {
-    handleUploadError(err, req, res, next, 'profile');
-  });
-};
-
-exports.uploadCoverPicture = (req, res, next) => {
-  coverUpload.single('coverPicture')(req, res, (err) => {
-    handleUploadError(err, req, res, next, 'cover');
-  });
-};
-
-exports.uploadRecipeImage = (req, res, next) => {
-  recipeUpload.single('image')(req, res, (err) => {
-    handleUploadError(err, req, res, next, 'recipe');
-  });
-};
-
-exports.uploadRecipeImages = (req, res, next) => {
-  recipeUpload.array('images', 10)(req, res, (err) => {
-    handleUploadError(err, req, res, next, 'recipe-multiple');
-  });
-};
-
-// Error handler
-function handleUploadError(err, req, res, next, type) {
-  if (err) {
-    console.error(`❌ ${type} upload error:`, err.message);
-    
-    if (err.code === 'LIMIT_FILE_SIZE') {
-      return res.status(400).json({
+// Middleware function to handle profile uploads
+const profileUploadMiddleware = (req, res, next) => {
+  profileMulter.single('profilePicture')(req, res, (err) => {
+    if (err) {
+      console.error('❌ Profile upload error:', err.message);
+      
+      if (err.code === 'LIMIT_FILE_SIZE') {
+        return res.status(400).json({
+          success: false,
+          message: 'File too large. Maximum size is 5MB',
+          code: 'FILE_TOO_LARGE'
+        });
+      }
+      
+      if (err.message.includes('Invalid file type')) {
+        return res.status(400).json({
+          success: false,
+          message: err.message,
+          code: 'INVALID_FILE_TYPE'
+        });
+      }
+      
+      return res.status(500).json({
         success: false,
-        message: `File too large. Maximum size is ${err.limit / (1024*1024)}MB`,
-        code: 'FILE_TOO_LARGE'
+        message: `Upload failed: ${err.message}`,
+        code: 'UPLOAD_ERROR'
       });
     }
     
-    if (err.message.includes('Invalid file type')) {
+    if (!req.file) {
       return res.status(400).json({
         success: false,
-        message: err.message,
-        code: 'INVALID_FILE_TYPE'
+        message: 'No file uploaded',
+        code: 'NO_FILE'
       });
     }
     
-    return res.status(500).json({
-      success: false,
-      message: `Upload failed: ${err.message}`,
-      code: 'UPLOAD_ERROR'
+    console.log(`✅ Profile picture uploaded successfully:`, {
+      path: req.file.path,
+      secure_url: req.file.secure_url,
+      filename: req.file.originalname
     });
-  }
-  
-  if (!req.file) {
-    return res.status(400).json({
-      success: false,
-      message: 'No file uploaded',
-      code: 'NO_FILE'
-    });
-  }
-  
-  console.log(`✅ ${type} uploaded successfully:`, {
-    path: req.file.path,
-    secure_url: req.file.secure_url,
-    filename: req.file.originalname
+    
+    // Ensure consistent URL
+    if (req.file.secure_url) {
+      req.file.url = req.file.secure_url;
+    }
+    
+    next();
   });
-  
-  // Ensure consistent URL
-  if (req.file.secure_url) {
-    req.file.url = req.file.secure_url;
-  }
-  
-  next();
-}
+};
 
-// Test function
-exports.testCloudinary = async () => {
-  try {
-    const result = await cloudinary.api.ping();
-    console.log('✅ Cloudinary connection test successful');
-    return { connected: true, ...result };
-  } catch (error) {
-    console.error('❌ Cloudinary connection failed:', error.message);
-    return { connected: false, error: error.message };
+// Middleware function to handle cover uploads
+const coverUploadMiddleware = (req, res, next) => {
+  coverMulter.single('coverPicture')(req, res, (err) => {
+    if (err) {
+      console.error('❌ Cover upload error:', err.message);
+      
+      if (err.code === 'LIMIT_FILE_SIZE') {
+        return res.status(400).json({
+          success: false,
+          message: 'File too large. Maximum size is 10MB',
+          code: 'FILE_TOO_LARGE'
+        });
+      }
+      
+      return res.status(500).json({
+        success: false,
+        message: `Upload failed: ${err.message}`,
+        code: 'UPLOAD_ERROR'
+      });
+    }
+    
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        message: 'No file uploaded',
+        code: 'NO_FILE'
+      });
+    }
+    
+    console.log(`✅ Cover picture uploaded successfully:`, {
+      path: req.file.path,
+      secure_url: req.file.secure_url,
+      filename: req.file.originalname
+    });
+    
+    // Ensure consistent URL
+    if (req.file.secure_url) {
+      req.file.url = req.file.secure_url;
+    }
+    
+    next();
+  });
+};
+
+// Export upload handlers
+module.exports = {
+  profileUpload: profileUploadMiddleware,
+  coverUpload: coverUploadMiddleware,
+  
+  // Recipe uploads
+  recipeUpload: (req, res, next) => {
+    recipeMulter.single('image')(req, res, (err) => {
+      if (err) {
+        console.error('❌ Recipe upload error:', err.message);
+        
+        if (err.code === 'LIMIT_FILE_SIZE') {
+          return res.status(400).json({
+            success: false,
+            message: 'File too large. Maximum size is 10MB',
+            code: 'FILE_TOO_LARGE'
+          });
+        }
+        
+        return res.status(500).json({
+          success: false,
+          message: `Upload failed: ${err.message}`,
+          code: 'UPLOAD_ERROR'
+        });
+      }
+      
+      if (!req.file) {
+        return res.status(400).json({
+          success: false,
+          message: 'No file uploaded',
+          code: 'NO_FILE'
+        });
+      }
+      
+      next();
+    });
+  },
+  
+  // Test function
+  testCloudinary: async () => {
+    try {
+      const result = await cloudinary.api.ping();
+      console.log('✅ Cloudinary connection test successful');
+      return { connected: true, ...result };
+    } catch (error) {
+      console.error('❌ Cloudinary connection test failed:', error.message);
+      return { connected: false, error: error.message };
+    }
   }
 };

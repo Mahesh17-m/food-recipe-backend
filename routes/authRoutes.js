@@ -5,10 +5,10 @@ const oauthController = require('../controllers/oauthController');
 const { body, validationResult } = require('express-validator');
 const rateLimit = require('express-rate-limit');
 const { auth } = require('../middleware/authMiddleware');
-const passport = require('passport');
 const User = require('../models/User');
 const jwt = require('jsonwebtoken');
 const { profileUpload } = require('../middleware/cloudinaryUpload');
+const profileController = require('../controllers/profileController'); // ADD THIS IMPORT
 
 // Rate limiting
 const authLimiter = rateLimit({
@@ -21,6 +21,8 @@ const passwordResetLimiter = rateLimit({
   max: 5,
   message: 'Too many password reset attempts, please try again later'
 });
+
+// Apply rate limiting to all routes
 router.use(authLimiter);
 
 // Input validation helper
@@ -74,13 +76,11 @@ router.post('/refresh-token', (req, res) => {
   }
 });
 
-// Google OAuth routes
+// Google OAuth
 router.get('/google', oauthController.googleAuth);
 router.get('/google/callback', oauthController.googleCallback);
-
-// Link Google account (requires authentication)
 router.post('/link-google', auth, async (req, res) => {
-  await oauthController.linkGoogleAccount(req, res);
+ await oauthController.linkGoogleAccount(req, res);
 });
 
 // Forgot password
@@ -173,8 +173,8 @@ router.get('/profile', auth, async (req, res) => {
   }
 });
 
-// Profile picture upload - FIXED: Use the controller function directly
-router.post('/profile/picture', auth, profileUpload, authController.uploadProfilePicture);
+// Profile picture upload - FIXED: Use profileController.uploadProfilePicture instead
+router.post('/profile/picture', auth, profileUpload, profileController.uploadProfilePicture);
 
 // Update profile
 router.put('/profile', auth, async (req, res) => {
