@@ -120,7 +120,7 @@ exports.getDefaultStats = () => {
     recipesCount: 0,
     favoritesCount: 0,
     reviewsCount: 0,
-    savedRecipesCount: 0, // ADD THIS
+    savedRecipesCount: 0,
     followersCount: 0,
     followingCount: 0,
     totalLikes: 0,
@@ -190,7 +190,7 @@ exports.getEnrichedUserStats = async (userId) => {
     // Combine all data - MAKE SURE TO INCLUDE savedRecipesCount
     const enrichedStats = {
       ...basicStats,
-      savedRecipesCount: savedRecipesCount, // ADD THIS
+      savedRecipesCount: savedRecipesCount,
       _id: user._id,
       username: user.username,
       email: user.email,
@@ -222,7 +222,7 @@ exports.getEnrichedUserStats = async (userId) => {
     console.log('Complete Stats Response:', {
       id: enrichedStats._id,
       coverPicture: enrichedStats.coverPicture,
-      savedRecipesCount: enrichedStats.savedRecipesCount, // Log this
+      savedRecipesCount: enrichedStats.savedRecipesCount,
       recipes: enrichedStats.recipesCount,
       favorites: enrichedStats.favoritesCount,
       saved: enrichedStats.savedRecipesCount,
@@ -238,7 +238,7 @@ exports.getEnrichedUserStats = async (userId) => {
     console.error('❌ Error getting enriched stats:', error);
     return {
       ...this.getDefaultStats(),
-      savedRecipesCount: 0, // ADD THIS
+      savedRecipesCount: 0,
       recentRecipes: [],
       recentReviews: [],
       username: '',

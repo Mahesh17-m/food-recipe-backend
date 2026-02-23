@@ -99,32 +99,33 @@ const profileUploadMiddleware = (req, res, next) => {
     if (err) {
       console.error('❌ Profile upload error:', err.message);
       
-      // Create error object to pass to next()
-      const error = new Error(err.message);
-      error.code = err.code;
-      
       if (err.code === 'LIMIT_FILE_SIZE') {
-        error.status = 400;
-        error.message = 'File too large. Maximum size is 5MB';
-        error.code = 'FILE_TOO_LARGE';
+        return res.status(400).json({ 
+          success: false,
+          message: 'File too large. Maximum size is 5MB',
+          code: 'FILE_TOO_LARGE'
+        });
       } else if (err.message.includes('Invalid file type')) {
-        error.status = 400;
-        error.message = err.message;
-        error.code = 'INVALID_FILE_TYPE';
+        return res.status(400).json({ 
+          success: false,
+          message: err.message,
+          code: 'INVALID_FILE_TYPE'
+        });
       } else {
-        error.status = 500;
-        error.message = `Upload failed: ${err.message}`;
-        error.code = 'UPLOAD_ERROR';
+        return res.status(500).json({ 
+          success: false,
+          message: `Upload failed: ${err.message}`,
+          code: 'UPLOAD_ERROR'
+        });
       }
-      
-      return next(error);
     }
     
     if (!req.file) {
-      const error = new Error('No file uploaded');
-      error.status = 400;
-      error.code = 'NO_FILE';
-      return next(error);
+      return res.status(400).json({ 
+        success: false,
+        message: 'No file uploaded',
+        code: 'NO_FILE'
+      });
     }
     
     console.log(`✅ Profile picture uploaded successfully:`, {
@@ -148,28 +149,27 @@ const coverUploadMiddleware = (req, res, next) => {
     if (err) {
       console.error('❌ Cover upload error:', err.message);
       
-      // Create error object to pass to next()
-      const error = new Error(err.message);
-      error.code = err.code;
-      
       if (err.code === 'LIMIT_FILE_SIZE') {
-        error.status = 400;
-        error.message = 'File too large. Maximum size is 10MB';
-        error.code = 'FILE_TOO_LARGE';
+        return res.status(400).json({ 
+          success: false,
+          message: 'File too large. Maximum size is 10MB',
+          code: 'FILE_TOO_LARGE'
+        });
       } else {
-        error.status = 500;
-        error.message = `Upload failed: ${err.message}`;
-        error.code = 'UPLOAD_ERROR';
+        return res.status(500).json({ 
+          success: false,
+          message: `Upload failed: ${err.message}`,
+          code: 'UPLOAD_ERROR'
+        });
       }
-      
-      return next(error);
     }
     
     if (!req.file) {
-      const error = new Error('No file uploaded');
-      error.status = 400;
-      error.code = 'NO_FILE';
-      return next(error);
+      return res.status(400).json({ 
+        success: false,
+        message: 'No file uploaded',
+        code: 'NO_FILE'
+      });
     }
     
     console.log(`✅ Cover picture uploaded successfully:`, {
@@ -198,28 +198,27 @@ module.exports = {
       if (err) {
         console.error('❌ Recipe upload error:', err.message);
         
-        // Create error object to pass to next()
-        const error = new Error(err.message);
-        error.code = err.code;
-        
         if (err.code === 'LIMIT_FILE_SIZE') {
-          error.status = 400;
-          error.message = 'File too large. Maximum size is 10MB';
-          error.code = 'FILE_TOO_LARGE';
+          return res.status(400).json({ 
+            success: false,
+            message: 'File too large. Maximum size is 10MB',
+            code: 'FILE_TOO_LARGE'
+          });
         } else {
-          error.status = 500;
-          error.message = `Upload failed: ${err.message}`;
-          error.code = 'UPLOAD_ERROR';
+          return res.status(500).json({ 
+            success: false,
+            message: `Upload failed: ${err.message}`,
+            code: 'UPLOAD_ERROR'
+          });
         }
-        
-        return next(error);
       }
       
       if (!req.file) {
-        const error = new Error('No file uploaded');
-        error.status = 400;
-        error.code = 'NO_FILE';
-        return next(error);
+        return res.status(400).json({ 
+          success: false,
+          message: 'No file uploaded',
+          code: 'NO_FILE'
+        });
       }
       
       next();
