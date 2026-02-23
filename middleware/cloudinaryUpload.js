@@ -75,27 +75,27 @@ const recipeStorage = createCloudinaryStorage('recipes', [
 ]);
 
 // Create multer uploaders
-const profileMulter = multer({
+const uploadProfile = multer({
   storage: profileStorage,
   fileFilter: imageFilter,
   limits: { fileSize: 5 * 1024 * 1024 } // 5MB
-});
+}).single('profilePicture');
 
-const coverMulter = multer({
+const uploadCover = multer({
   storage: coverStorage,
   fileFilter: imageFilter,
   limits: { fileSize: 10 * 1024 * 1024 } // 10MB
-});
+}).single('coverPicture');
 
-const recipeMulter = multer({
+const uploadRecipe = multer({
   storage: recipeStorage,
   fileFilter: imageFilter,
   limits: { fileSize: 10 * 1024 * 1024 } // 10MB
-});
+}).single('image');
 
-// Middleware function to handle profile uploads - FIXED VERSION
-const profileUploadMiddleware = (req, res, next) => {
-  profileMulter.single('profilePicture')(req, res, (err) => {
+// Middleware wrapper functions
+const uploadProfileMiddleware = (req, res, next) => {
+  uploadProfile(req, res, (err) => {
     if (err) {
       console.error('❌ Profile upload error:', err.message);
       
@@ -134,18 +134,12 @@ const profileUploadMiddleware = (req, res, next) => {
       filename: req.file.originalname
     });
     
-    // Ensure consistent URL
-    if (req.file.secure_url) {
-      req.file.url = req.file.secure_url;
-    }
-    
     next();
   });
 };
 
-// Middleware function to handle cover uploads - FIXED VERSION
-const coverUploadMiddleware = (req, res, next) => {
-  coverMulter.single('coverPicture')(req, res, (err) => {
+const uploadCoverMiddleware = (req, res, next) => {
+  uploadCover(req, res, (err) => {
     if (err) {
       console.error('❌ Cover upload error:', err.message);
       
@@ -178,9 +172,36 @@ const coverUploadMiddleware = (req, res, next) => {
       filename: req.file.originalname
     });
     
-    // Ensure consistent URL
-    if (req.file.secure_url) {
-      req.file.url = req.file.secure_url;
+    next();
+  });
+};
+
+const uploadRecipeMiddleware = (req, res, next) => {
+  uploadRecipe(req, res, (err) => {
+    if (err) {
+      console.error('❌ Recipe upload error:', err.message);
+      
+      if (err.code === 'LIMIT_FILE_SIZE') {
+        return res.status(400).json({ 
+          success: false,
+          message: 'File too large. Maximum size is 10MB',
+          code: 'FILE_TOO_LARGE'
+        });
+      } else {
+        return res.status(500).json({ 
+          success: false,
+          message: `Upload failed: ${err.message}`,
+          code: 'UPLOAD_ERROR'
+        });
+      }
+    }
+    
+    if (!req.file) {
+      return res.status(400).json({ 
+        success: false,
+        message: 'No file uploaded',
+        code: 'NO_FILE'
+      });
     }
     
     next();
@@ -189,41 +210,9 @@ const coverUploadMiddleware = (req, res, next) => {
 
 // Export upload handlers
 module.exports = {
-  profileUpload: profileUploadMiddleware,
-  coverUpload: coverUploadMiddleware,
-  
-  // Recipe uploads - FIXED VERSION
-  recipeUpload: (req, res, next) => {
-    recipeMulter.single('image')(req, res, (err) => {
-      if (err) {
-        console.error('❌ Recipe upload error:', err.message);
-        
-        if (err.code === 'LIMIT_FILE_SIZE') {
-          return res.status(400).json({ 
-            success: false,
-            message: 'File too large. Maximum size is 10MB',
-            code: 'FILE_TOO_LARGE'
-          });
-        } else {
-          return res.status(500).json({ 
-            success: false,
-            message: `Upload failed: ${err.message}`,
-            code: 'UPLOAD_ERROR'
-          });
-        }
-      }
-      
-      if (!req.file) {
-        return res.status(400).json({ 
-          success: false,
-          message: 'No file uploaded',
-          code: 'NO_FILE'
-        });
-      }
-      
-      next();
-    });
-  },
+  uploadProfile: uploadProfileMiddleware,
+  uploadCover: uploadCoverMiddleware,
+  uploadRecipe: uploadRecipeMiddleware,
   
   // Test function
   testCloudinary: async () => {

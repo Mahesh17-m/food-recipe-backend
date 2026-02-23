@@ -213,9 +213,12 @@ exports.uploadProfilePicture = async (req, res) => {
   try {
     console.log('📸 Profile upload request received:', {
       hasFile: !!req.file,
-      file: req.file,
-      userId: req.user?.id,
-      body: req.body
+      file: req.file ? {
+        path: req.file.path,
+        secure_url: req.file.secure_url,
+        filename: req.file.originalname
+      } : null,
+      userId: req.user?.id
     });
 
     if (!req.file) {
@@ -227,14 +230,6 @@ exports.uploadProfilePicture = async (req, res) => {
       });
     }
 
-    console.log('✅ File received from Cloudinary middleware:', {
-      path: req.file.path,
-      secure_url: req.file.secure_url,
-      url: req.file.url,
-      filename: req.file.originalname,
-      size: req.file.size
-    });
-
     const user = await User.findById(req.user.id);
     if (!user) {
       console.log('❌ User not found:', req.user.id);
@@ -245,8 +240,8 @@ exports.uploadProfilePicture = async (req, res) => {
       });
     }
 
-    // Use the Cloudinary URL - prioritize secure_url
-    const profilePictureUrl = req.file.secure_url || req.file.path || req.file.url;
+    // Use the Cloudinary URL
+    const profilePictureUrl = req.file.secure_url || req.file.path;
     
     if (!profilePictureUrl) {
       console.log('❌ No URL in file object');
@@ -264,7 +259,6 @@ exports.uploadProfilePicture = async (req, res) => {
 
     console.log('✅ Profile picture updated:', {
       userId: user._id,
-      email: user.email,
       profilePicture: user.profilePicture
     });
 
@@ -282,20 +276,16 @@ exports.uploadProfilePicture = async (req, res) => {
         name: user.name,
         username: user.username,
         profilePicture: user.profilePicture,
-        coverPicture: user.coverPicture,
-        ...stats,
-        userLevel
+        coverPicture: user.coverPicture
       }
     });
     
   } catch (err) {
     console.error('❌ Profile upload error:', err);
-    console.error('Error stack:', err.stack);
     res.status(500).json({ 
       success: false,
       message: 'Failed to update profile picture',
-      code: 'PROFILE_UPDATE_ERROR',
-      error: process.env.NODE_ENV === 'development' ? err.message : undefined
+      code: 'PROFILE_UPDATE_ERROR'
     });
   }
 };
@@ -305,9 +295,12 @@ exports.uploadCoverPicture = async (req, res) => {
   try {
     console.log('📸 Cover upload request received:', {
       hasFile: !!req.file,
-      file: req.file,
-      userId: req.user?.id,
-      body: req.body
+      file: req.file ? {
+        path: req.file.path,
+        secure_url: req.file.secure_url,
+        filename: req.file.originalname
+      } : null,
+      userId: req.user?.id
     });
 
     if (!req.file) {
@@ -319,14 +312,6 @@ exports.uploadCoverPicture = async (req, res) => {
       });
     }
 
-    console.log('✅ File received from Cloudinary middleware:', {
-      path: req.file.path,
-      secure_url: req.file.secure_url,
-      url: req.file.url,
-      filename: req.file.originalname,
-      size: req.file.size
-    });
-
     const user = await User.findById(req.user.id);
     if (!user) {
       console.log('❌ User not found:', req.user.id);
@@ -337,8 +322,8 @@ exports.uploadCoverPicture = async (req, res) => {
       });
     }
 
-    // Use the Cloudinary URL - prioritize secure_url
-    const coverPictureUrl = req.file.secure_url || req.file.path || req.file.url;
+    // Use the Cloudinary URL
+    const coverPictureUrl = req.file.secure_url || req.file.path;
     
     if (!coverPictureUrl) {
       console.log('❌ No URL in file object');
@@ -356,7 +341,6 @@ exports.uploadCoverPicture = async (req, res) => {
 
     console.log('✅ Cover picture updated:', {
       userId: user._id,
-      email: user.email,
       coverPicture: user.coverPicture
     });
 
@@ -374,20 +358,16 @@ exports.uploadCoverPicture = async (req, res) => {
         name: user.name,
         username: user.username,
         profilePicture: user.profilePicture,
-        coverPicture: user.coverPicture,
-        ...stats,
-        userLevel
+        coverPicture: user.coverPicture
       }
     });
     
   } catch (err) {
     console.error('❌ Cover upload error:', err);
-    console.error('Error stack:', err.stack);
     res.status(500).json({ 
       success: false,
       message: 'Failed to update cover picture',
-      code: 'COVER_UPDATE_ERROR',
-      error: process.env.NODE_ENV === 'development' ? err.message : undefined
+      code: 'COVER_UPDATE_ERROR'
     });
   }
 };

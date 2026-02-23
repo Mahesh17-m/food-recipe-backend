@@ -1,14 +1,13 @@
 const express = require('express');
 const router = express.Router();
 const profileController = require('../controllers/profileController');
-const { coverUpload, profileUpload } = require('../middleware/cloudinaryUpload');
+const { uploadCover, uploadProfile } = require('../middleware/cloudinaryUpload');
 
 // Debug middleware imports
 console.log('🔍 Profile Routes - Checking imports:');
 console.log('   profileController type:', typeof profileController);
-console.log('   profileController.uploadCoverPicture exists:', 'uploadCoverPicture' in profileController);
-console.log('   coverUpload type:', typeof coverUpload);
-console.log('   profileUpload type:', typeof profileUpload);
+console.log('   uploadCover type:', typeof uploadCover);
+console.log('   uploadProfile type:', typeof uploadProfile);
 
 // Authentication middleware
 const requireAuth = (req, res, next) => {
@@ -32,9 +31,9 @@ router.get('/stats/:userId', profileController.getUserStats);
 router.get('/:userId', profileController.getUserProfile);
 router.get('/author/:userId', profileController.getAuthorProfile);
 
-// Upload routes - FIXED
-router.post('/cover', coverUpload, profileController.uploadCoverPicture);
-router.post('/profile-picture', profileUpload, profileController.uploadProfilePicture);
+// Upload routes - FIXED: Use correct middleware names
+router.post('/cover', uploadCover, profileController.uploadCoverPicture);
+router.post('/profile-picture', uploadProfile, profileController.uploadProfilePicture);
 
 // Follow routes
 router.post('/follow/:userId', profileController.toggleFollow);
