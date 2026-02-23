@@ -208,11 +208,26 @@ const uploadRecipeMiddleware = (req, res, next) => {
   });
 };
 
-// Export upload handlers
+// =============================================
+// EXPORT ALL MIDDLEWARE WITH MULTIPLE NAMES
+// for compatibility with different route files
+// =============================================
+
 module.exports = {
+  // Primary exports (for profileRoutes)
   uploadProfile: uploadProfileMiddleware,
   uploadCover: uploadCoverMiddleware,
   uploadRecipe: uploadRecipeMiddleware,
+  
+  // Aliases for backward compatibility (for authRoutes and any other files)
+  profileUpload: uploadProfileMiddleware,
+  coverUpload: uploadCoverMiddleware,
+  recipeUpload: uploadRecipeMiddleware,
+  
+  // Also export the middleware functions directly (if needed)
+  uploadProfileMiddleware,
+  uploadCoverMiddleware,
+  uploadRecipeMiddleware,
   
   // Test function
   testCloudinary: async () => {
