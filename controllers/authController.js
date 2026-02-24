@@ -1,4 +1,6 @@
 const User = require('../models/User');
+const Recipe = require('../models/Recipe');  // ADD THIS
+const Review = require('../models/Review');  // ADD THIS
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const notificationController = require('./notificationController');
@@ -102,8 +104,14 @@ exports.login = async (req, res) => {
   try {
     const { email, password } = req.body;
     
-    console.log('🔐 Login attempt:');
-    console.log('   Email:', email);
+    console.log('🔐 Login attempt for:', email);
+
+    if (!email || !password) {
+      return res.status(400).json({ 
+        message: 'Email and password are required',
+        code: 'MISSING_CREDENTIALS'
+      });
+    }
 
     const user = await User.findOne({ email: email.toLowerCase() }).select('+password');
     
@@ -118,7 +126,7 @@ exports.login = async (req, res) => {
     console.log('✅ User found:', user.email);
 
     const isMatch = await user.comparePassword(password.trim());
-    console.log('🔑 Password comparison result:', isMatch);
+    console.log('🔑 Password match:', isMatch);
 
     if (!isMatch) {
       console.log('❌ Password does not match for user:', user.email);
@@ -138,30 +146,48 @@ exports.login = async (req, res) => {
 
     console.log('✅ Login successful for:', user.email);
 
-    // IMPORTANT: Include userId in token payload
+    // Create tokens
     const token = jwt.sign(
       { userId: user._id.toString(), email: user.email }, 
       process.env.JWT_SECRET, 
-      { expiresIn: '7d' } // Increased from 1h to 7d
+      { expiresIn: '7d' }
     );
     
     const refreshToken = jwt.sign(
       { userId: user._id.toString() }, 
       process.env.JWT_REFRESH_SECRET, 
-      { expiresIn: '30d' } // Increased from 7d to 30d
+      { expiresIn: '30d' }
     );
 
-    // Get counts
-    const recipesCount = await Recipe.countDocuments({ author: user._id });
-    const favoritesCount = user.favorites ? user.favorites.length : 0;
-    const reviewsCount = await Review.countDocuments({ author: user._id });
+    // Get counts - FIXED: Use try-catch for each query
+    let recipesCount = 0;
+    let favoritesCount = 0;
+    let reviewsCount = 0;
+    
+    try {
+      recipesCount = await Recipe.countDocuments({ author: user._id });
+    } catch (err) {
+      console.error('Error counting recipes:', err);
+    }
+    
+    try {
+      favoritesCount = user.favorites ? user.favorites.length : 0;
+    } catch (err) {
+      console.error('Error counting favorites:', err);
+    }
+    
+    try {
+      reviewsCount = await Review.countDocuments({ author: user._id });
+    } catch (err) {
+      console.error('Error counting reviews:', err);
+    }
 
     return res.status(200).json({
       token,
       refreshToken,
       user: { 
         _id: user._id, 
-        id: user._id, // Include both for compatibility
+        id: user._id,
         email: user.email,
         name: user.name,
         username: user.username,
@@ -176,9 +202,11 @@ exports.login = async (req, res) => {
     });
   } catch (err) {
     console.error('❌ Login error:', err);
+    console.error('Error stack:', err.stack);
     return res.status(500).json({ 
-      message: 'Server error',
-      code: 'SERVER_ERROR'
+      message: 'Server error during login',
+      code: 'SERVER_ERROR',
+      error: process.env.NODE_ENV === 'development' ? err.message : undefined
     });
   }
 };
