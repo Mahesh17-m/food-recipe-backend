@@ -45,7 +45,10 @@ exports.getUserStats = async (req, res) => {
 // Get Profile endpoint
 exports.getProfile = async (req, res) => {
   try {
-    const user = await User.findById(req.user.id)
+    // Use req.user._id or req.user.id consistently
+    const userId = req.user._id || req.user.id;
+    
+    const user = await User.findById(userId)
       .select('-password -resetPasswordToken -resetPasswordExpires')
       .populate('savedRecipes', 'title imageUrl rating')
       .populate('favorites', 'title imageUrl rating')
@@ -58,10 +61,9 @@ exports.getProfile = async (req, res) => {
       });
     }
 
-    const stats = await userService.getEnrichedUserStats(req.user.id);
+    const stats = await userService.getEnrichedUserStats(userId);
     const userLevel = calculateUserLevel(stats);
 
-    // Merge user data with stats
     const response = {
       ...user,
       ...stats,
@@ -69,13 +71,6 @@ exports.getProfile = async (req, res) => {
       isFollowing: false
     };
 
-    // Ensure coverPicture is always included
-    if (!response.coverPicture && user.coverPicture) {
-      response.coverPicture = user.coverPicture;
-    }
-
-    console.log('✅ Profile response sent with coverPicture:', response.coverPicture);
-    
     res.json(response);
   } catch (err) {
     console.error('Get profile error:', err);

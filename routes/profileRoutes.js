@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const profileController = require('../controllers/profileController');
 const { uploadCover, uploadProfile } = require('../middleware/cloudinaryUpload');
+const { auth } = require('../middleware/authMiddleware'); // Import auth middleware
 
 // Debug middleware imports
 console.log('🔍 Profile Routes - Checking imports:');
@@ -9,19 +10,8 @@ console.log('   profileController type:', typeof profileController);
 console.log('   uploadCover type:', typeof uploadCover);
 console.log('   uploadProfile type:', typeof uploadProfile);
 
-// Authentication middleware
-const requireAuth = (req, res, next) => {
-  if (!req.user) {
-    return res.status(401).json({ 
-      message: 'Authentication required',
-      code: 'UNAUTHORIZED' 
-    });
-  }
-  next();
-};
-
 // Apply authentication to all profile routes
-router.use(requireAuth);
+router.use(auth); // Use the auth middleware directly
 
 // Profile routes
 router.get('/', profileController.getProfile);
@@ -31,7 +21,7 @@ router.get('/stats/:userId', profileController.getUserStats);
 router.get('/:userId', profileController.getUserProfile);
 router.get('/author/:userId', profileController.getAuthorProfile);
 
-// Upload routes - FIXED: Use correct middleware names
+// Upload routes
 router.post('/cover', uploadCover, profileController.uploadCoverPicture);
 router.post('/profile-picture', uploadProfile, profileController.uploadProfilePicture);
 

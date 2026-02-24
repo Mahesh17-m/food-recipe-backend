@@ -9,16 +9,11 @@ exports.register = async (req, res) => {
   const { name, email, password, username } = req.body;
 
   try {
-    console.log('👤 Registration attempt:');
-    console.log('   Name:', name);
-    console.log('   Email:', email);
-    console.log('   Username:', username);
-    console.log('   Password length:', password?.length);
+    console.log('👤 Registration attempt:', { name, email, username });
 
     // Check if email already exists
     const existingUserByEmail = await User.findOne({ email: email.toLowerCase() });
     if (existingUserByEmail) {
-      console.log('❌ Email already exists:', email);
       return res.status(400).json({ 
         message: 'Email already registered',
         code: 'EMAIL_EXISTS'
@@ -28,15 +23,12 @@ exports.register = async (req, res) => {
     // Check if username already exists
     const existingUserByUsername = await User.findOne({ username: username.toLowerCase() });
     if (existingUserByUsername) {
-      console.log('❌ Username already exists:', username);
       return res.status(400).json({ 
         message: 'Username already taken',
         code: 'USERNAME_EXISTS'
       });
     }
 
-    console.log('✅ Creating new user...');
-    
     const newUser = new User({
       name: name.trim(),
       username: username.toLowerCase().trim(),
@@ -44,33 +36,40 @@ exports.register = async (req, res) => {
       password: password.trim()
     });
 
-    // Save user first
     await newUser.save();
     console.log('✅ User saved successfully:', newUser.email);
 
-    // Create welcome notification AFTER user is saved
+    // Create welcome notification
     try {
       await notificationController.createWelcomeNotification(newUser._id);
-      console.log('✅ Welcome notification created for:', newUser.email);
     } catch (notificationError) {
       console.error('⚠️ Failed to create welcome notification:', notificationError);
-      // Don't fail registration if notification fails
     }
 
-    const token = jwt.sign({ userId: newUser._id }, process.env.JWT_SECRET, { expiresIn: '1h' });
-    const refreshToken = jwt.sign({ userId: newUser._id }, process.env.JWT_REFRESH_SECRET, { expiresIn: '7d' });
-
-    console.log('✅ Registration completed for:', newUser.email);
+    // Create tokens with userId
+    const token = jwt.sign(
+      { userId: newUser._id.toString(), email: newUser.email }, 
+      process.env.JWT_SECRET, 
+      { expiresIn: '7d' }
+    );
+    
+    const refreshToken = jwt.sign(
+      { userId: newUser._id.toString() }, 
+      process.env.JWT_REFRESH_SECRET, 
+      { expiresIn: '30d' }
+    );
 
     return res.status(201).json({
       token,
       refreshToken,
       user: { 
-        id: newUser._id, 
+        _id: newUser._id,
+        id: newUser._id,
         email: newUser.email,
         name: newUser.name,
         username: newUser.username,
-        profilePicture: newUser.profilePicture
+        profilePicture: newUser.profilePicture,
+        coverPicture: newUser.coverPicture
       }
     });
   } catch (err) {
@@ -105,9 +104,6 @@ exports.login = async (req, res) => {
     
     console.log('🔐 Login attempt:');
     console.log('   Email:', email);
-    console.log('   Email (processed):', email.toLowerCase().trim());
-    console.log('   Password length:', password?.length);
-    console.log('   Password (processed):', password.trim());
 
     const user = await User.findOne({ email: email.toLowerCase() }).select('+password');
     
@@ -120,8 +116,6 @@ exports.login = async (req, res) => {
     }
 
     console.log('✅ User found:', user.email);
-    console.log('🔑 Stored hash exists:', !!user.password);
-    console.log('🔑 Stored hash length:', user.password?.length);
 
     const isMatch = await user.comparePassword(password.trim());
     console.log('🔑 Password comparison result:', isMatch);
@@ -134,34 +128,45 @@ exports.login = async (req, res) => {
       });
     }
 
-    // Create login notification with error handling
+    // Create login notification
     try {
       await notificationController.createLoginNotification(user._id);
       console.log('✅ Login notification created for:', user.email);
     } catch (notificationError) {
       console.error('⚠️ Failed to create login notification:', notificationError);
-      // Don't fail login if notification fails
     }
 
     console.log('✅ Login successful for:', user.email);
 
-    const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, { expiresIn: '1h' });
-    const refreshToken = jwt.sign({ userId: user._id }, process.env.JWT_REFRESH_SECRET, { expiresIn: '7d' });
+    // IMPORTANT: Include userId in token payload
+    const token = jwt.sign(
+      { userId: user._id.toString(), email: user.email }, 
+      process.env.JWT_SECRET, 
+      { expiresIn: '7d' } // Increased from 1h to 7d
+    );
+    
+    const refreshToken = jwt.sign(
+      { userId: user._id.toString() }, 
+      process.env.JWT_REFRESH_SECRET, 
+      { expiresIn: '30d' } // Increased from 7d to 30d
+    );
 
-    // Get user stats for response
-    const recipesCount = 0;
+    // Get counts
+    const recipesCount = await Recipe.countDocuments({ author: user._id });
     const favoritesCount = user.favorites ? user.favorites.length : 0;
-    const reviewsCount = 0;
+    const reviewsCount = await Review.countDocuments({ author: user._id });
 
     return res.status(200).json({
       token,
       refreshToken,
       user: { 
-        id: user._id, 
+        _id: user._id, 
+        id: user._id, // Include both for compatibility
         email: user.email,
         name: user.name,
         username: user.username,
         profilePicture: user.profilePicture,
+        coverPicture: user.coverPicture,
         tagline: user.tagline,
         recipesCount,
         favoritesCount,
@@ -251,15 +256,57 @@ exports.forgotPassword = async (req, res) => {
 };
 
 exports.refreshToken = (req, res) => {
-  const { token } = req.body;
-  if (!token) return res.status(401).json({ message: 'Refresh token required' });
+  const { refreshToken } = req.body;
+  
+  if (!refreshToken) {
+    return res.status(401).json({ 
+      message: 'Refresh token required', 
+      code: 'NO_REFRESH_TOKEN' 
+    });
+  }
 
   try {
-    const decoded = jwt.verify(token, process.env.JWT_REFRESH_SECRET);
-    const newAccessToken = jwt.sign({ userId: decoded.userId }, process.env.JWT_SECRET, { expiresIn: '1h' });
-    res.json({ token: newAccessToken });
+    const decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET);
+    
+    if (!decoded || !decoded.userId) {
+      return res.status(403).json({ 
+        message: 'Invalid refresh token', 
+        code: 'INVALID_REFRESH_TOKEN' 
+      });
+    }
+
+    // Generate new access token
+    const newAccessToken = jwt.sign(
+      { userId: decoded.userId }, 
+      process.env.JWT_SECRET, 
+      { expiresIn: '7d' }
+    );
+    
+    // Optionally generate new refresh token
+    const newRefreshToken = jwt.sign(
+      { userId: decoded.userId }, 
+      process.env.JWT_REFRESH_SECRET, 
+      { expiresIn: '30d' }
+    );
+
+    return res.json({ 
+      token: newAccessToken,
+      refreshToken: newRefreshToken 
+    });
   } catch (err) {
-    res.status(403).json({ message: 'Invalid refresh token' });
+    console.error('❌ Refresh token error:', err);
+    
+    if (err.name === 'TokenExpiredError') {
+      return res.status(403).json({ 
+        message: 'Refresh token expired', 
+        code: 'REFRESH_TOKEN_EXPIRED' 
+      });
+    }
+    
+    return res.status(403).json({ 
+      message: 'Invalid refresh token', 
+      code: 'INVALID_REFRESH_TOKEN' 
+    });
   }
 };
 
