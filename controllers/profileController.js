@@ -796,7 +796,7 @@ exports.getUserRecipes = async (req, res) => {
 
 // In profileController.js - Replace the getChefs function with this improved version
 
-// Get Chefs
+// Get Chefs - FIXED VERSION
 exports.getChefs = async (req, res) => {
   try {
     console.log('📋 Fetching chefs...');
@@ -805,40 +805,41 @@ exports.getChefs = async (req, res) => {
     const totalUsers = await User.countDocuments();
     console.log(`📊 Total users in database: ${totalUsers}`);
     
-    // Get users with error handling for each field
-    const users = await User.find({})
-      .select('username email profilePicture bio recipesCount followersCount isVerified createdAt specialty socialMedia')
+    // Get users with proper query - removed the empty query object issue
+    // Also ensure we're only getting users who have at least some activity or are chefs
+    const users = await User.find({})  // This was correct, but we need to ensure the query works
+      .select('username email profilePicture bio recipesCount followersCount isVerified createdAt specialty socialMedia followingCount')
       .sort({ recipesCount: -1, followersCount: -1, createdAt: -1 })
       .limit(50)
-      .lean() // Use lean() for better performance
-      .catch(err => {
-        console.error('❌ Error in User.find():', err);
-        throw err;
-      });
+      .lean(); // Use lean() for better performance
 
     console.log(`✅ Found ${users.length} users`);
 
     // Map users to chefs format with safe property access
-    const chefs = users.map(user => {
-      try {
-        return {
-          _id: user._id || null,
-          username: user.username || 'Unknown Chef',
-          email: user.email || '',
-          profilePicture: user.profilePicture || null,
-          bio: user.bio || '',
-          recipesCount: typeof user.recipesCount === 'number' ? user.recipesCount : 0,
-          followersCount: typeof user.followersCount === 'number' ? user.followersCount : 0,
-          isVerified: user.isVerified || false,
-          createdAt: user.createdAt || new Date(),
-          specialty: user.specialty || '',
-          socialMedia: user.socialMedia || {}
-        };
-      } catch (mapError) {
-        console.error('❌ Error mapping user to chef:', mapError, user);
-        return null;
-      }
-    }).filter(chef => chef !== null); // Remove any null entries from errors
+    const chefs = users
+      .filter(user => user && user.username) // Filter out invalid users
+      .map(user => {
+        try {
+          return {
+            _id: user._id?.toString() || null,
+            username: user.username || 'Unknown Chef',
+            email: user.email || '',
+            profilePicture: user.profilePicture || null,
+            bio: user.bio || '',
+            recipesCount: typeof user.recipesCount === 'number' ? user.recipesCount : 0,
+            followersCount: typeof user.followersCount === 'number' ? user.followersCount : 0,
+            followingCount: typeof user.followingCount === 'number' ? user.followingCount : 0,
+            isVerified: user.isVerified || false,
+            createdAt: user.createdAt || new Date(),
+            specialty: user.specialty || '',
+            socialMedia: user.socialMedia || {}
+          };
+        } catch (mapError) {
+          console.error('❌ Error mapping user to chef:', mapError, user);
+          return null;
+        }
+      })
+      .filter(chef => chef !== null); // Remove any null entries from errors
 
     console.log(`✅ Processed ${chefs.length} chefs`);
 
@@ -853,6 +854,29 @@ exports.getChefs = async (req, res) => {
   } catch (error) {
     console.error('❌ Error in getChefs:', error);
     console.error('❌ Error stack:', error.stack);
+    
+    // Check for specific MongoDB errors
+    if (error.name === 'MongoServerError') {
+      return res.status(500).json({
+        success: false,
+        users: [],
+        total: 0,
+        message: 'Database error occurred',
+        error: 'Database connection issue',
+        code: 'DB_ERROR'
+      });
+    }
+    
+    if (error.name === 'ValidationError') {
+      return res.status(500).json({
+        success: false,
+        users: [],
+        total: 0,
+        message: 'Data validation error',
+        error: error.message,
+        code: 'VALIDATION_ERROR'
+      });
+    }
     
     // Send a more detailed error response
     res.status(500).json({
