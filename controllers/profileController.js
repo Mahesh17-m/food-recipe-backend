@@ -794,38 +794,73 @@ exports.getUserRecipes = async (req, res) => {
   }
 };
 
+// In profileController.js - Replace the getChefs function with this improved version
+
 // Get Chefs
 exports.getChefs = async (req, res) => {
   try {
+    console.log('📋 Fetching chefs...');
+    
+    // First, check if there are any users at all
+    const totalUsers = await User.countDocuments();
+    console.log(`📊 Total users in database: ${totalUsers}`);
+    
+    // Get users with error handling for each field
     const users = await User.find({})
       .select('username email profilePicture bio recipesCount followersCount isVerified createdAt specialty socialMedia')
       .sort({ recipesCount: -1, followersCount: -1, createdAt: -1 })
-      .limit(50);
+      .limit(50)
+      .lean() // Use lean() for better performance
+      .catch(err => {
+        console.error('❌ Error in User.find():', err);
+        throw err;
+      });
 
-    const chefs = users.map(user => ({
-      _id: user._id,
-      username: user.username,
-      email: user.email,
-      profilePicture: user.profilePicture,
-      bio: user.bio,
-      recipesCount: user.recipesCount || 0,
-      followersCount: user.followersCount || 0,
-      isVerified: user.isVerified || false,
-      createdAt: user.createdAt,
-      specialty: user.specialty,
-      socialMedia: user.socialMedia || {}
-    }));
+    console.log(`✅ Found ${users.length} users`);
 
-    res.json({
+    // Map users to chefs format with safe property access
+    const chefs = users.map(user => {
+      try {
+        return {
+          _id: user._id || null,
+          username: user.username || 'Unknown Chef',
+          email: user.email || '',
+          profilePicture: user.profilePicture || null,
+          bio: user.bio || '',
+          recipesCount: typeof user.recipesCount === 'number' ? user.recipesCount : 0,
+          followersCount: typeof user.followersCount === 'number' ? user.followersCount : 0,
+          isVerified: user.isVerified || false,
+          createdAt: user.createdAt || new Date(),
+          specialty: user.specialty || '',
+          socialMedia: user.socialMedia || {}
+        };
+      } catch (mapError) {
+        console.error('❌ Error mapping user to chef:', mapError, user);
+        return null;
+      }
+    }).filter(chef => chef !== null); // Remove any null entries from errors
+
+    console.log(`✅ Processed ${chefs.length} chefs`);
+
+    // Return in the format expected by frontend
+    res.status(200).json({
       success: true,
       users: chefs,
-      total: chefs.length
+      total: chefs.length,
+      message: 'Chefs retrieved successfully'
     });
+
   } catch (error) {
-    console.error('Error fetching chefs:', error);
+    console.error('❌ Error in getChefs:', error);
+    console.error('❌ Error stack:', error.stack);
+    
+    // Send a more detailed error response
     res.status(500).json({
       success: false,
+      users: [],
+      total: 0,
       message: 'Error fetching chefs',
+      error: error.message,
       code: 'SERVER_ERROR'
     });
   }
